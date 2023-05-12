@@ -67,14 +67,44 @@ def v_spacer(height, sb=False) -> None:
 def Calc_total_orders(groupof,count_of):
     return (df_consumer.groupby(groupof).agg( 
                 total_orders = pl.count(count_of)
-            ).sort(groupof)).collect()
+            ).sort(groupof).collect()
+            )
 
 # Total GMV Function
 @st.cache_data
 def Calc_total_gmv(groupof,sum_of):
     return (df_consumer.groupby(groupof).agg(
                 total_gmv = pl.sum(sum_of)
-            ).sort(groupof)).collect()
+            ).sort(groupof).collect()
+            )
+
+@st.cache_data
+def Calc_countof_group(groupof):
+    return (df_consumer.groupby(groupof).count().collect()
+            )
+
+@st.cache_data
+def Calc_percof_group(groupof):
+    return (df_consumer.groupby(groupof).count().with_columns(
+                total_orders = pl.sum('count').over('Year') 
+            ).with_columns(
+                perc_sales = (pl.col('count') / pl.col('total_orders') * 100 ).round(2)
+            ).collect()
+                    )
+
+
+# Since cust_id is not available in slim data so below code will give error
+# @st.cache_data()
+# def get_Repeated_customer_df():
+
+#     customer_2015_list = df_consumer.filter(pl.col('Year') == 2015).select('cust_id').unique().collect().to_series().to_list()
+
+#     return (df_consumer.filter(pl.col('Year') > 2015).with_columns(
+#             Repeat_cust_over_Year = pl.when(pl.col('cust_id').is_in(customer_2015_list)
+#                                             ).then('Customer_Repeat_2015').otherwise('New_Customer')
+#                                             ).collect()
+# )
+
 
 ############### Custom Functions Ends ###############
 
@@ -118,8 +148,16 @@ with header_mid:
 
 ############################## USEFUL AGGREGATIONS & LIST DONE ##############################
 
-v_spacer(4)
+
 # st.write(df_consumer.dtypes)
+
+
+
+# col_01,col_02,col_03 = st.columns([4,4,2],gap = "small")
+# with col_02:
+#     st.markdown('<p class="big-font">Data</p>', unsafe_allow_html=True)
+
+
 
 with st.expander("Click here to View the Demo of the Data"):
 
@@ -127,7 +165,8 @@ with st.expander("Click here to View the Demo of the Data"):
 
     tab11.dataframe(df_consumer.head(10).collect().to_pandas())
     tab21.dataframe(df_consumer.collect().to_pandas().describe()) #head(10).collect().to_pandas()
-    
+
+v_spacer(4)    
 
 col_11,col_12,col_13 = st.columns([4,4,2],gap = "small")
 with col_12:
@@ -451,7 +490,9 @@ fig_product_analytic_category_gmv_facet = px.line(Calc_total_gmv(groupof=['Year'
 tab24.plotly_chart(fig_product_analytic_category_gmv_facet,use_container_width=True, config = config)
     
 
-st.divider()
+# st.divider()
+
+st.markdown("""---""") 
 
 ##################################           #########################
 
@@ -460,3 +501,102 @@ st.divider()
 
 
 
+##################################         ##########################
+
+
+
+col_31,col_32,col_33 = st.columns([3,4,2],gap = "small")
+with col_32:
+    st.markdown('<p class="big-font">By Payment Method Type</p>', unsafe_allow_html=True)
+
+fig_payment_type = px.bar(
+                            # Calc_countof_group(groupof=['Year','order_payment_type']).to_pandas(),
+                            Calc_percof_group(groupof=['Year','order_payment_type']).to_pandas(),
+                    y='count',x='order_payment_type', color='order_payment_type',facet_col= 'Year',
+                    orientation='v',
+                    category_orders={'Year':[2015,2016],
+                                     'order_payment_type': ['COD','Prepaid']},
+                    
+                    labels={
+                            "order_payment_type": "Payment Type",
+                            "count": "Total Order Count"
+                        },
+                
+                title=f'<b>Total Orders by Payment type</b>'
+                
+).update_layout(height = 550)
+
+
+fig_payment_type_perc = px.bar(
+                            Calc_percof_group(groupof=['Year','order_payment_type']).to_pandas(),
+                    y='perc_sales',x='order_payment_type', color='order_payment_type',facet_col= 'Year',
+                    orientation='v',
+                    category_orders={'Year':[2015,2016],
+                                     'order_payment_type': ['COD','Prepaid']},
+                    
+                    labels={
+                            "order_payment_type": "Payment Type (%)",
+                            'perc_sales': '% Orders'
+                        },
+                
+                title=f'<b>Percntage Orders by Payment type</b>'
+                
+).update_layout(height = 550)
+
+col_41,col_42 = st.columns([1,1],gap = "small")
+
+with col_41:
+    st.plotly_chart(fig_payment_type,use_container_width=True, config = config)
+
+with col_42:
+    st.plotly_chart(fig_payment_type_perc,use_container_width=True, config = config)
+
+# st.dataframe(Calc_percof_group(groupof=['Year','order_payment_type']).to_pandas())
+
+st.write("As we can see in Above Plots - Not only the Number of Orders have increased in 2016 from 2015 in both Prepaid & COD orders  \
+         but also the Percentage of Prepaid Orders have increased and COD have decreased which shows the growing confidence of \
+         customers in the organization.")
+            
+
+#################################           ##########################
+
+
+
+
+
+
+
+################################## REPEAT / NEW CUSTOMER        ##########################
+
+
+# col_51,col_52,col_53 = st.columns([3,8,2],gap = "small")
+# with col_52:
+#     st.markdown('<p class="big-font">Repeat/New Customer Payment Method</p>', unsafe_allow_html=True)
+
+# fig_payment_type_repeat_cust = px.bar(get_Repeated_customer_df().to_pandas(),
+#                     y='count',x='Repeat_cust_over_Year', color='order_payment_type',
+#                     orientation='v',
+#                     # category_orders={'Year':[2015,2016],
+#                     #                  'order_payment_type': ['COD','Prepaid']},
+                    
+#                     # labels={
+#                     #         "order_payment_type": "Payment Type",
+#                     #         "count": "Total Order Count"
+#                     #     },
+                
+#                 title=f'<b>New/ Repeat Customer in 2016 from 2015 - Total Orders by Payment type</b>'
+                
+# ).update_layout(height = 550)
+
+
+# col_61,col_62 = st.columns([1,1],gap = "small")
+
+# with col_61:
+#     st.plotly_chart(fig_payment_type_repeat_cust,use_container_width=True, config = config)
+
+
+# st.dataframe(get_Repeated_customer_df().to_pandas())
+
+            
+
+#################################           ##########################
